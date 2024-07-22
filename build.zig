@@ -12,6 +12,7 @@ pub fn build(b: *std.Build) void {
     });
 
     addWgpuNative(b, exe);
+    addShader(b, exe);
 
     b.installArtifact(exe);
 
@@ -43,4 +44,10 @@ fn addWgpuNative(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.addIncludePath(b.path("wgpu_native"));
     exe.addObjectFile(b.path("wgpu_native/libwgpu_native.a"));
     exe.linkSystemLibrary("gcc_s");
+}
+
+fn addShader(b: *std.Build, exe: *std.Build.Step.Compile) void {
+    exe.root_module.addAnonymousImport("compute-shader", .{
+        .root_source_file = b.path("src/compute-shader.wgsl"),
+    });
 }

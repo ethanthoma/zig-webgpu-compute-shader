@@ -55,14 +55,7 @@ pub fn main() !void {
     defer wgpu.wgpuQueueRelease(queue);
 
     // Load the compute shader
-    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const path = try std.fs.realpathZ("src/compute-shader.wgsl", &path_buffer);
-
-    const file = try std.fs.openFileAbsolute(path, .{});
-    defer file.close();
-
-    const shader_source: [*c]u8 = @ptrCast(try file.readToEndAlloc(std.heap.page_allocator, 472));
-    shader_source[471] = 0;
+    const shader_source: [*c]const u8 = @ptrCast(@embedFile("compute-shader"));
 
     const shader_module_descriptor = wgpu.WGPUShaderModuleDescriptor{
         .label = "compute-shader.wgsl",
