@@ -12,6 +12,7 @@ pub fn build(b: *std.Build) void {
     });
 
     addWgpuNative(b, exe);
+    addGlfw3(b, exe);
     addShader(b, exe);
 
     b.installArtifact(exe);
@@ -36,6 +37,14 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_unit_tests.step);
+}
+
+fn addGlfw3(b: *std.Build, exe: *std.Build.Step.Compile) void {
+    exe.linkLibC();
+    exe.addIncludePath(b.path("glfw3"));
+    exe.addObjectFile(b.path("glfw3/libglfw3.a"));
+    exe.addIncludePath(.{ .cwd_relative = "@libGL@" });
+    exe.addIncludePath(.{ .cwd_relative = "@libwayland@" });
 }
 
 fn addWgpuNative(b: *std.Build, exe: *std.Build.Step.Compile) void {
