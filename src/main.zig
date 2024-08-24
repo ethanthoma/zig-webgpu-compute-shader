@@ -23,50 +23,38 @@ const Error = error{
 
 pub fn main() !void {
     // Create instance
-    const instance: wgpu.WGPUInstance = retval: {
-        if (wgpu.wgpuCreateInstance(&.{})) |instance| {
-            break :retval instance;
-        } else {
-            std.debug.print("Failed to create wgpu instance\n", .{});
-            return Error.FailedToCreateInstance;
-        }
+    const instance: wgpu.WGPUInstance = wgpu.wgpuCreateInstance(
+        &wgpu.WGPUInstanceDescriptor{},
+    ) orelse {
+        std.debug.print("Failed to create wgpu instance\n", .{});
+        return Error.FailedToCreateInstance;
     };
     defer wgpu.wgpuInstanceRelease(instance);
 
     // Get adpater
-    const adapter: wgpu.WGPUAdapter = retval: {
-        const options = wgpu.WGPURequestAdapterOptions{};
-
-        if (requestAdapterSync(instance, &options)) |adapter| {
-            break :retval adapter;
-        } else {
-            std.debug.print("Failed to get adapter\n", .{});
-            return Error.FailedToGetAdapter;
-        }
+    const adapter: wgpu.WGPUAdapter = requestAdapterSync(
+        instance,
+        &wgpu.WGPURequestAdapterOptions{},
+    ) orelse {
+        std.debug.print("Failed to get adapter\n", .{});
+        return Error.FailedToGetAdapter;
     };
     defer wgpu.wgpuAdapterRelease(adapter);
 
     // Get device
-    const device: wgpu.WGPUDevice = retval: {
-        const descriptor = wgpu.WGPUDeviceDescriptor{};
-
-        if (requestDeviceSync(adapter, &descriptor)) |device| {
-            break :retval device;
-        } else {
-            std.debug.print("Failed to get adapter\n", .{});
-            return Error.FailedToGetDevice;
-        }
+    const device: wgpu.WGPUDevice = requestDeviceSync(
+        adapter,
+        &wgpu.WGPUDeviceDescriptor{},
+    ) orelse {
+        std.debug.print("Failed to get device\n", .{});
+        return Error.FailedToGetDevice;
     };
     defer wgpu.wgpuDeviceRelease(device);
 
     // Get queue
-    const queue: wgpu.WGPUQueue = retval: {
-        if (wgpu.wgpuDeviceGetQueue(device)) |queue| {
-            break :retval queue;
-        } else {
-            std.debug.print("Failed to get queue\n", .{});
-            return Error.FailedToGetQueue;
-        }
+    const queue: wgpu.WGPUQueue = wgpu.wgpuDeviceGetQueue(device) orelse {
+        std.debug.print("Failed to get queue\n", .{});
+        return Error.FailedToGetQueue;
     };
     defer wgpu.wgpuQueueRelease(queue);
 
@@ -93,7 +81,7 @@ pub fn main() !void {
     };
     defer wgpu.wgpuShaderModuleRelease(shader);
 
-    // Create input and output buffers
+    // Create input buffer
     var input_data: [64]f32 = undefined;
     for (input_data, 0..) |_, i| {
         input_data[i] = @floatFromInt(i + 1);
@@ -101,112 +89,119 @@ pub fn main() !void {
 
     const buffer_size = @sizeOf([64]f32);
 
-    const input_buffer: wgpu.WGPUBuffer = retval: {
-        const input_buffer_descriptor = wgpu.WGPUBufferDescriptor{
+    const input_buffer: wgpu.WGPUBuffer = wgpu.wgpuDeviceCreateBuffer(
+        device,
+        &wgpu.WGPUBufferDescriptor{
             .usage = wgpu.WGPUBufferUsage_Storage | wgpu.WGPUBufferUsage_CopyDst,
             .size = buffer_size,
             .mappedAtCreation = 0,
-        };
-
-        if (wgpu.wgpuDeviceCreateBuffer(device, &input_buffer_descriptor)) |input_buffer| {
-            break :retval input_buffer;
-        } else {
-            std.debug.print("Failed to create input buffer\n", .{});
-            return Error.FailedToCreateBuffer;
-        }
+        },
+    ) orelse {
+        std.debug.print("Failed to create input buffer\n", .{});
+        return Error.FailedToCreateBuffer;
     };
     defer wgpu.wgpuBufferRelease(input_buffer);
 
-    const output_buffer: wgpu.WGPUBuffer = retval: {
-        const output_buffer_descriptor = wgpu.WGPUBufferDescriptor{
+    // Create output buffer
+    const output_buffer: wgpu.WGPUBuffer = wgpu.wgpuDeviceCreateBuffer(
+        device,
+        &wgpu.WGPUBufferDescriptor{
             .usage = wgpu.WGPUBufferUsage_Storage | wgpu.WGPUBufferUsage_CopySrc,
             .size = buffer_size,
             .mappedAtCreation = 0,
-        };
-
-        if (wgpu.wgpuDeviceCreateBuffer(device, &output_buffer_descriptor)) |output_buffer| {
-            break :retval output_buffer;
-        } else {
-            std.debug.print("Failed to create output buffer\n", .{});
-            return Error.FailedToCreateBuffer;
-        }
+        },
+    ) orelse {
+        std.debug.print("Failed to create output buffer\n", .{});
+        return Error.FailedToCreateBuffer;
     };
     defer wgpu.wgpuBufferRelease(output_buffer);
 
-    const map_buffer: wgpu.WGPUBuffer = retval: {
-        const map_buffer_descriptor = wgpu.WGPUBufferDescriptor{
+    // Create map buffer
+    const map_buffer: wgpu.WGPUBuffer = wgpu.wgpuDeviceCreateBuffer(
+        device,
+        &wgpu.WGPUBufferDescriptor{
             .usage = wgpu.WGPUBufferUsage_CopyDst | wgpu.WGPUBufferUsage_MapRead,
             .size = buffer_size,
             .mappedAtCreation = 0,
-        };
-
-        if (wgpu.wgpuDeviceCreateBuffer(device, &map_buffer_descriptor)) |map_buffer| {
-            break :retval map_buffer;
-        } else {
-            std.debug.print("Failed to create map buffer\n", .{});
-            return Error.FailedToCreateBuffer;
-        }
+        },
+    ) orelse {
+        std.debug.print("Failed to create map buffer\n", .{});
+        return Error.FailedToCreateBuffer;
     };
     defer wgpu.wgpuBufferRelease(map_buffer);
 
     // Create bind group layout
-    const bind_group_layout = retval: {
-        const bind_group_layout_descriptor = wgpu.WGPUBindGroupLayoutDescriptor{
+    const bind_group_layout = wgpu.wgpuDeviceCreateBindGroupLayout(
+        device,
+        &wgpu.WGPUBindGroupLayoutDescriptor{
             .entryCount = 2,
             .entries = &[_]wgpu.WGPUBindGroupLayoutEntry{
-                wgpu.WGPUBindGroupLayoutEntry{ .binding = 0, .visibility = wgpu.WGPUShaderStage_Compute, .buffer = wgpu.WGPUBufferBindingLayout{ .type = wgpu.WGPUBufferBindingType_ReadOnlyStorage } },
-                wgpu.WGPUBindGroupLayoutEntry{ .binding = 1, .visibility = wgpu.WGPUShaderStage_Compute, .buffer = wgpu.WGPUBufferBindingLayout{ .type = wgpu.WGPUBufferBindingType_Storage } },
+                wgpu.WGPUBindGroupLayoutEntry{
+                    .binding = 0,
+                    .visibility = wgpu.WGPUShaderStage_Compute,
+                    .buffer = wgpu.WGPUBufferBindingLayout{
+                        .type = wgpu.WGPUBufferBindingType_ReadOnlyStorage,
+                    },
+                },
+                wgpu.WGPUBindGroupLayoutEntry{
+                    .binding = 1,
+                    .visibility = wgpu.WGPUShaderStage_Compute,
+                    .buffer = wgpu.WGPUBufferBindingLayout{
+                        .type = wgpu.WGPUBufferBindingType_Storage,
+                    },
+                },
             },
-        };
-
-        if (wgpu.wgpuDeviceCreateBindGroupLayout(device, &bind_group_layout_descriptor)) |bind_group_layout| {
-            break :retval bind_group_layout;
-        } else {
-            std.debug.print("Failed to create bind group layout\n", .{});
-            return Error.FailedToCreateBindGroupLayout;
-        }
+        },
+    ) orelse {
+        std.debug.print("Failed to create bind group layout\n", .{});
+        return Error.FailedToCreateBindGroupLayout;
     };
     defer wgpu.wgpuBindGroupLayoutRelease(bind_group_layout);
 
     // Create bind group
-    const bind_group: wgpu.WGPUBindGroup = retval: {
-        const bind_group_descriptor = wgpu.WGPUBindGroupDescriptor{
+    const bind_group: wgpu.WGPUBindGroup = wgpu.wgpuDeviceCreateBindGroup(
+        device,
+        &wgpu.WGPUBindGroupDescriptor{
             .layout = bind_group_layout,
             .entryCount = 2,
             .entries = &[_]wgpu.WGPUBindGroupEntry{
-                wgpu.WGPUBindGroupEntry{ .binding = 0, .buffer = input_buffer, .offset = 0, .size = buffer_size },
-                wgpu.WGPUBindGroupEntry{ .binding = 1, .buffer = output_buffer, .offset = 0, .size = buffer_size },
+                wgpu.WGPUBindGroupEntry{
+                    .binding = 0,
+                    .buffer = input_buffer,
+                    .offset = 0,
+                    .size = buffer_size,
+                },
+                wgpu.WGPUBindGroupEntry{
+                    .binding = 1,
+                    .buffer = output_buffer,
+                    .offset = 0,
+                    .size = buffer_size,
+                },
             },
-        };
-
-        if (wgpu.wgpuDeviceCreateBindGroup(device, &bind_group_descriptor)) |bind_group| {
-            break :retval bind_group;
-        } else {
-            std.debug.print("Failed to create bind group\n", .{});
-            return Error.FailedToCreateBindGroup;
-        }
+        },
+    ) orelse {
+        std.debug.print("Failed to create bind group\n", .{});
+        return Error.FailedToCreateBindGroup;
     };
     defer wgpu.wgpuBindGroupRelease(bind_group);
 
     // Create pipeline layout
-    const pipeline_layout: wgpu.WGPUPipelineLayout = retval: {
-        const pipeline_layout_descriptor = wgpu.WGPUPipelineLayoutDescriptor{
+    const pipeline_layout: wgpu.WGPUPipelineLayout = wgpu.wgpuDeviceCreatePipelineLayout(
+        device,
+        &wgpu.WGPUPipelineLayoutDescriptor{
             .bindGroupLayoutCount = 1,
             .bindGroupLayouts = &bind_group_layout,
-        };
-
-        if (wgpu.wgpuDeviceCreatePipelineLayout(device, &pipeline_layout_descriptor)) |pipeline_layout| {
-            break :retval pipeline_layout;
-        } else {
-            std.debug.print("Failed to create pipeline layout\n", .{});
-            return Error.FailedToCreatePipelineLayout;
-        }
+        },
+    ) orelse {
+        std.debug.print("Failed to create pipeline layout\n", .{});
+        return Error.FailedToCreatePipelineLayout;
     };
     defer wgpu.wgpuPipelineLayoutRelease(pipeline_layout);
 
     // Create compute pipeline
-    const compute_pipeline: wgpu.WGPUComputePipeline = retval: {
-        const compute_pipeline_descriptor = wgpu.WGPUComputePipelineDescriptor{
+    const compute_pipeline: wgpu.WGPUComputePipeline = wgpu.wgpuDeviceCreateComputePipeline(
+        device,
+        &wgpu.WGPUComputePipelineDescriptor{
             .layout = pipeline_layout,
             .compute = wgpu.WGPUProgrammableStageDescriptor{
                 .constantCount = 0,
@@ -214,40 +209,30 @@ pub fn main() !void {
                 .entryPoint = "computeStuff",
                 .module = shader,
             },
-        };
-
-        if (wgpu.wgpuDeviceCreateComputePipeline(device, &compute_pipeline_descriptor)) |compute_pipeline| {
-            break :retval compute_pipeline;
-        } else {
-            std.debug.print("Failed to create compute pipeline\n", .{});
-            return Error.FailedToCreateComputePipeline;
-        }
+        },
+    ) orelse {
+        std.debug.print("Failed to create compute pipeline\n", .{});
+        return Error.FailedToCreateComputePipeline;
     };
     defer wgpu.wgpuComputePipelineRelease(compute_pipeline);
 
     // Initialize a command encoder
-    const command_encoder: wgpu.WGPUCommandEncoder = retval: {
-        const command_encoder_descriptor = wgpu.WGPUCommandEncoderDescriptor{};
-
-        if (wgpu.wgpuDeviceCreateCommandEncoder(device, &command_encoder_descriptor)) |command_encoder| {
-            break :retval command_encoder;
-        } else {
-            std.debug.print("Failed to create command encoder\n", .{});
-            return Error.FailedToCreateCommandEncoder;
-        }
+    const command_encoder: wgpu.WGPUCommandEncoder = wgpu.wgpuDeviceCreateCommandEncoder(
+        device,
+        &wgpu.WGPUCommandEncoderDescriptor{},
+    ) orelse {
+        std.debug.print("Failed to create command encoder\n", .{});
+        return Error.FailedToCreateCommandEncoder;
     };
     defer wgpu.wgpuCommandEncoderRelease(command_encoder);
 
     // Create compute pass
-    const compute_pass_encoder: wgpu.WGPUComputePassEncoder = retval: {
-        const compute_pass_descriptor = wgpu.WGPUComputePassDescriptor{};
-
-        if (wgpu.wgpuCommandEncoderBeginComputePass(command_encoder, &compute_pass_descriptor)) |compute_pass_encoder| {
-            break :retval compute_pass_encoder;
-        } else {
-            std.debug.print("Failed to create compute pass encoder\n", .{});
-            return Error.FailedToCreateComputePassEncoder;
-        }
+    const compute_pass_encoder: wgpu.WGPUComputePassEncoder = wgpu.wgpuCommandEncoderBeginComputePass(
+        command_encoder,
+        &wgpu.WGPUComputePassDescriptor{},
+    ) orelse {
+        std.debug.print("Failed to create compute pass encoder\n", .{});
+        return Error.FailedToCreateComputePassEncoder;
     };
     defer wgpu.wgpuComputePassEncoderRelease(compute_pass_encoder);
 
@@ -267,13 +252,12 @@ pub fn main() !void {
     wgpu.wgpuCommandEncoderCopyBufferToBuffer(command_encoder, output_buffer, 0, map_buffer, 0, buffer_size);
 
     // Encode commands
-    const command_buffer: wgpu.WGPUCommandBuffer = retval: {
-        if (wgpu.wgpuCommandEncoderFinish(command_encoder, null)) |command_buffer| {
-            break :retval command_buffer;
-        } else {
-            std.debug.print("Failed to create command buffer\n", .{});
-            return Error.FailedToCreateCommandBuffer;
-        }
+    const command_buffer: wgpu.WGPUCommandBuffer = wgpu.wgpuCommandEncoderFinish(
+        command_encoder,
+        null,
+    ) orelse {
+        std.debug.print("Failed to create command buffer\n", .{});
+        return Error.FailedToCreateCommandBuffer;
     };
     defer wgpu.wgpuCommandBufferRelease(command_buffer);
 
@@ -290,7 +274,7 @@ pub fn main() !void {
     }.func;
     wgpu.wgpuQueueOnSubmittedWorkDone(queue, onQueueWorkDone, null);
 
-    std.time.sleep(1_000_000_000);
+    std.time.sleep(1_000_000);
 
     wgpu.wgpuBufferMapAsync(map_buffer, wgpu.WGPUMapMode_Read, 0, buffer_size, onMap, null);
     defer wgpu.wgpuBufferUnmap(map_buffer);
@@ -301,7 +285,15 @@ pub fn main() !void {
 
     std.debug.print("\n", .{});
     for (buf, 0..) |val, i| {
-        std.debug.print("[{}] = {}, ", .{ i, val });
+        std.debug.print("[{d: >2}] = {d: >3.0}", .{ i, val });
+
+        if (i + 1 < buf.len) {
+            std.debug.print(", ", .{});
+        }
+
+        if ((i + 1) % 8 == 0) {
+            std.debug.print("\n", .{});
+        }
     }
     std.debug.print("\n", .{});
 }

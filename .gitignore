@@ -10,3 +10,7 @@ zig-out/
 
 # nix
 result
+
+# direnv
+.direnv/
+.envrc
